@@ -1,0 +1,201 @@
+---
+title: "Advanced Analytic Techniques 2 - Assignment 2"
+author: "Minh Tu Tran"
+date: "14 October 2017"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+###1. Explain the topic model and author-topic model. Give a real world example for each of the models.
+
+The topic modelling is an unsupervised method in machine learning which is employed to extract the topics of considerable document collections. The fundamental idea is that the documents are expressed as the topic distributions, where every topic is expressed as a word distribution (Blei, Ng and Jordan 2012).  
+  Nowadays, there are huge document collections from the websites, articles to social networks which are almost infeasible for the humans to summary them in a time limit. Therefore, an automatic method such as the topic modelling to summary and analyze those collections is needed (Alghamdi and Alfalqi, 2015). In the topic modelling, the Latent Dirichlet Allocation (LDA) is one of the most popular methods.  
+In the LDA, there are three steps to model documents. Initially, for every document, a topic distribution is experimented accordingly to the Dirichlet distribution. Then, a single topic within the distribution is selected for every word in the document. Finally, every word samples from a word distribution specified to the topic (Blei, Ng and Jordan 2012).  
+  One of the most well-known topic modelling project is "Mining the Dispatch" done by Nelson and his research team. By mining 112,000 documents containing almost 24 million words, the project team can observe the social and political patterns during the Civil War in Richmond from 1860 to 1865. In addition, there is an interactive published website that helps people to learn the trend of 37 topics during the period. In this application, the topic modelling obviously serves as an useful means for the historians to discover the historical events from the large document collections. Furthermore, the research questions can be raised from the unexplainable patterns. The project is done by employing the Mallet, a powerful tool for topic modelling (Goldberg 2016).  
+The author-topic model is different from the topic model in a way that it not only characterises the content of document collections but also the interested topics of authors. The basic idea is that each author is signified as a topic distribution. A document is expressed as a mixed topics of associated authors distribution. This technique is helpful in analyzing the large collections of documents and authors in several ways such as finding the tendency of topics over time, discovering the active authors on a specific topic and obtaining the uncommon papers of a specified author (Steyvers et al. 2004).  
+  The author-topic modelling is done by the following procedure. Firstly, an author is randomly selected for every word in each document. Secondly, from the distribution over topics of that author, a topic is selected and from that topic, the word is produced. (Steyvers et al. 2004).  
+  A real-world example of the author-topic modelling is a document analyzing system done by Rosen-Zvi et al. (2010). The system analyses 150,000 summaries from the CiteSeer online library. By employing this system, the useful information can be obtained such as the rank of authors by topics, the rank of topics by authors and uncommon papers of a given author. Furthermore, the system can be accessed online, which is extremely useful to discover 300 topics in the computer science.  
+
+  
+###2. Download the Twitter dataset (rdmTweets-201306.RData) from the course website and do the following.
+
+#####Text cleaning: remove URLs, convert to lower case, and remove non-English letters or space.
+
+```{r message=FALSE, warning=FALSE, cache=FALSE}
+library("twitteR")
+#load tweets
+load("rdmTweets-201306.RData") 
+tweets_df <- twListToDF(tweets)
+
+library(tm)
+corpus <- Corpus(VectorSource(tweets_df$text))
+
+#text cleaning
+corpus <- tm_map(corpus, content_transformer(tolower))#convert to lower case
+removeURL <- function(x) gsub("http[^[:space:]]*", "", x)#remove URLs
+corpus <- tm_map(corpus, content_transformer(removeURL))
+#remove non-English letters
+removeNonEng <- function(x) gsub("[^[:alpha:][:space:]]*", "", x)
+corpus <- tm_map(corpus, content_transformer(removeNonEng))
+
+#remove stop words, for example: I, only, very,...
+myStopwords <- c(stopwords('english'), "available", "via")# add two extra stop words
+corpus <- tm_map(corpus, removeWords, myStopwords)
+
+corpus <- tm_map(corpus, stripWhitespace)#remove space
+
+corpusCopy <- corpus
+# stem words: get to a word's root
+corpus <- tm_map(corpus, stemDocument)
+corpus <- tm_map(corpus, stripWhitespace)  
+
+#stem completion
+stemCompletion2 <- function(x, dictionary)
+{
+x <- unlist(strsplit(as.character(x), " "))
+x <- x[x != ""]
+x <- stemCompletion(x, dictionary=dictionary)
+x <- paste(x, sep="", collapse=" ")
+}
+corpus <- lapply(corpus, stemCompletion2, dictionary=corpusCopy)
+corpus <- Corpus(VectorSource(corpus))
+
+#The first ten cleaned documents are:
+inspect(corpus[1:10])
+```
+
+#####Count the frequency of words "data" and "mining".
+
+```{r message=FALSE, warning=FALSE, cache=FALSE}
+#use the original corpus to count words
+dataFreq <- lapply(corpusCopy,function(x){grep(as.character(x), pattern = "\\<data")})
+cat("The frequency of the word data is:", sum(unlist(dataFreq)), "\n")
+miningFreq <- lapply(corpusCopy,function(x){grep(as.character(x), pattern = "\\<mining")})
+cat("The frequency of the word mining is:", sum(unlist(miningFreq)))
+```
+
+#####Plot the word cloud.
+
+```{r message=FALSE, warning=FALSE, cache=FALSE}
+term_doc_matrix <- TermDocumentMatrix(corpus, control = list(wordLengths = c(1, Inf)))
+tdm_matrix <- as.matrix(term_doc_matrix)
+word_freq <- sort(rowSums(tdm_matrix), decreasing = T)
+
+library(wordcloud)
+wordcloud(words = names(word_freq), freq = word_freq, min.freq = 3,
+random.order = F, colors = "blue")
+```
+
+#####Use a topic modelling algorithm to fit the Twitter data to 8 topics. Find the top 6 frequent terms (words) in each topic.
+
+```{r message=FALSE, warning=FALSE, cache=FALSE}
+library(topicmodels)
+doc_term_matrix <- as.DocumentTermMatrix(term_doc_matrix)
+lda <- LDA(doc_term_matrix, k = 8)
+#The top 6 frequent terms in each of the 8 topics are:
+(term <- terms(lda, 6))
+```
+
+###3. What is stream data? Give a real world example of a stream-data system/application. Explain the challenges of algorithms for stream data analysis.
+
+A sequence of elements that come in a timely order is called a stream data (Jiang and Gruenwald 2006). Examples of the stream data are transaction data from the retail industry, image data from satellites and queries from search engines. The stream data arrives continuously and rapidly (Jiang and Gruenwald 2006). In addition, they are infinite and often in high volume (Cai et al. 2004). Therefore, it is impossible to keep them in a storage. Those mentioned features of stream data pose several challenges in the stream data analysis because the mining algorithms are designed to work on the static data sets.  
+  The association rule mining and clustering are important areas in data mining. However, because of the mentioned properties of stream data, they both face some challenges in the stream data analysis. Firstly, because it is unfeasible to store the stream data, the stream data rule mining needs to be invented to perform with one pass of the data (Vijayarani and Sathya 2013). Secondly, due to the high speed and volume of a data stream, the mining models face a computational problem (Vijayarani and Sathya 2013). Ideally, the processing time should be quicker than the data arriving rate. Otherwise, a data sampling technique can be applied, which reduces the accuracy of the models (Jiang and Gruenwald 2006). Similarly, in the data stream clustering algorithms, the density of every data element is impossible to obtain due to the large amount of data, which requires an approximation technique (Chen and Tu 2007). Finally, the frequent item sets, which are the main objectives of association rule mining, are changing over time, that required regular updating of the models (Jiang and Gruenwald 2006). Likewise, the clustering algorithms need to be designed to capture the changing of clusters over time because the temporal feature of data streams is getting more interests (Chen and Tu 2007).  
+In 2004, the Automated Learning Group, NCSA and the Department of Computer Science at the University of Illinois worked together and developed one of the most well-known systems in stream data analysis, the Mining Alarming Incidents from Data Streams (MAIDS). This system is a general framework for stream data analyzing and can handle various types of data. The system includes five efficient components: stream query, data classifier, pattern finder, cluster analyzer and mining visualizer, which produce the query outcomes, classifiers, common patterns, clusters and output visualizations, respectively. There are many applications such as the web click stream analysis, credit card fraud protection and network intrusion detection that can be inherited from the system. Furthermore, the system shows a high-quality performance in detecting intrusions when deploying in a real-world application (Cai et al. 2004).  
+
+
+
+###4. Create a data stream of two dimensions data points. The data points will follow Gaussian distribution with 5% noise and belong to 4 clusters. Compare the performance of the following clustering methods in terms of precision, recall, and F1.
+
+```{r message=FALSE, warning=FALSE, cache=FALSE}
+library("stream")
+set.seed(123)
+stream <- DSD_Gaussians(k = 4, d = 2, noise = .05)
+stream
+```
+
+#####Use Reservoir sampling to sample 200 data points from 500 data points of the stream. Use K-means to cluster the points in the reservoir into 5 groups, and use 100 points from the stream to evaluate the performance of K-means.
+
+```{r message=FALSE, warning=FALSE, cache=FALSE}
+set.seed(123)
+Reservoir_Kmeans= DSC_TwoStage(micro = DSC_Sample(k = 200), macro = DSC_Kmeans(k = 5))
+update(Reservoir_Kmeans, stream, n=500)
+Reservoir_Kmeans
+plot(Reservoir_Kmeans, stream)
+evaluate(Reservoir_Kmeans, stream, measure = c("precision", "recall","F1"), n =100)
+```
+
+#####Use Windowing method to get 200 data points from 500 data points of the stream. Use K-means to cluster the points in the window into 5 groups, and use 100 points from the stream to evaluate the performance of K-means.
+
+```{r message=FALSE, warning=FALSE, cache=FALSE}
+set.seed(123)
+Window_Kmeans = DSC_TwoStage(micro = DSC_Window(horizon = 200), macro = DSC_Kmeans(k = 5))
+update(Window_Kmeans, stream, n=500)
+Window_Kmeans
+plot(Window_Kmeans, stream)
+evaluate(Window_Kmeans, stream, measure = c("precision", "recall","F1"), n =100)
+```
+
+#####Apply the D-Stream clustering method to 500 points from the stream with gridsize=0.1, and use 100 points from the stream to evaluate the performance of D-stream.
+
+```{r message=FALSE, warning=FALSE, cache=FALSE}
+set.seed(123)
+dstream <- DSC_DStream(gridsize = .1, Cm = 1.2)
+dstream
+update(dstream, stream, n = 500)
+dstream
+plot(dstream, stream)
+evaluate(dstream, stream, measure = c("precision", "recall","F1"), n =100)
+```
+The experiments show that the clustering technique based on Reservoir sampling achieves the best results. It obtains 81%, 92% and 86% as the outcomes of precision, recall and F1 score, respectively while those statistics of the Windowing method are 83%, 73%, 78% in the same order of measures.In addition, these two techniques outperform the D-stream clustering method which acquires 45%, 25% and 32% for the corresponding measures.  
+
+###5. What is geographical data analysis? Explain a real world application of geographical information system.
+
+The data that signifies the items in geometric space is called the geographical data (Xu and Kennedy 2015). According to the authors, the geographical data analysis or the spatial analysis consider the position or the separation among items in the analysis. In other words, the spatial analysis is the procedure of discovering trends or patterns from geographic data.  
+  The main applications of spatial analysis can be categorized into three groups: hotspot discovery, co-location mining and spatial regression. The hotspot discovery aims to identify areas that have an uncommon concentration of events compared to other areas (Xu and Kennedy 2015). Some applications of hotspot discovery are to find regions that have more crimes or identify regions in which more diseases are reported (potential breakout). The co-location mining aims to obtain the subsets of spatial objects that are usually positioned together (Eick et al. 2006). For example, the busy cinemas could be co-located with the busy supermarkets. The knowing of this pattern may improve the business strategy. Finally, the spatial regression is an expansion of multiple regression, it takes the spatial relationships among items into account (Xu and Kennedy 2015). An example of the spatial regression could be the prediction of areas that the property prices increase in the next five years.  
+  The Geographical Information System (GIS) is a system constructed to obtain, store, operate, analyze and display the geographical data (Manjula and Narsimha 2014). The Forest Fireproof system is a real-world application of GIS, that uses satellite images to identify fire in the forests (Yu and Bian 2007). The authors employ co-location analysis based on the Apriori association data mining algorithm to find out the relationships between fires and surrounding factors such as the temperature, humidity, wind direction and rainfall. In other words, the probability of a fire occurrence is the confidence of the subset including the fire and environmental factors. As a result, the real-time reaction departments can rely on the Forest Fireproof for their effective services.  
+
+
+###6. Use spatial data analysis packages in R, including sp, maps, and ggmap, do the following tasks.
+
+#####Draw a map of Australia where each city is represented as a dot. Highlight cities with population more than one million people.
+
+```{r message=FALSE, warning=FALSE, cache=FALSE}
+library(maps)
+df <- world.cities[world.cities$country.etc == "Australia",]
+
+library(ggmap)
+myMap <- get_map(location = "Australia", zoom = 4)
+ggmap(myMap) +
+geom_point(data = df[, c("long","lat", "pop")], alpha=0.4,aes(x=long, y = lat,
+colour = pop > 1000000))+
+scale_colour_manual(values = c("TRUE"="darkred", "FALSE"="yellow2"))
+```
+
+#####Use ggmap to draw the Google map of Australia. Add makers for big cities with more than one million people. The bigger the city the larger the size of the marker.
+
+```{r message=FALSE, warning=FALSE, cache=FALSE}
+df <- world.cities[world.cities$country.etc == "Australia",]
+big_city<-subset(df, pop > 1000000)
+myMap <- get_map(location = "Australia", zoom = 4)
+ggmap(myMap) +
+geom_point(data = big_city[, c("long","lat", "pop")], aes(x=long, y = lat, size = pop),
+           color='blue', alpha=0.5)
+
+```
+
+####References
+Alghamdi, R & Alfalqi, K 2015, 'A Survey of Topic Modelling in Text Mining', International Journal of Advanced Computer Science and Applications, vol.6, no.1, pp 147-153.
+Blei, DM, Ng, AY & Jordan, MI 2012, 'Latent Dirichlet Allocation', Journal of Machine Learning Research, vol.3, pp 993-1022.  
+Cai, YD, Clutter, D, Page, G, Han, J, Welge, M & Auvil L 2004, 'MAIDS: Mining Alarming Incidents from Data Streams', Proceedings of the 23rd ACM SIGMOD (International Conference on Management of Data).  
+Chen, Y & Tu, L 2007, 'Density-Based Clustering for Real-Time Stream Data', Proceedings of the 13th ACM SIGKDD (International Conference On Knowledge Discovery And Data Mining), pp 133-142.  
+Eick, CF, Vaezian, B, Jiang, D & Wang, J 2006, 'Discovery of Interesting Regions in Spatial Data Sets Using Supervised Clustering', Knowledge Discovery in Databases, vol. 4213, pp. 127-138.  
+Goldberg, S 2016, Teaching the Digital Humanities through Topic Modelling, viewed 20 October 2017, <http://housedivided.dickinson.edu/sites/blogdivided/2016/06/28/teaching-the-digital-humanities-through-topic-  
+modelling/>.  
+Jiang, N & Gruenwald, L 2006, 'Research Issues in Data Stream Association Rule Mining', ACM SIGMOD Record, vol.35, no.1, pp 14-19.  
+Manjula, A &Narsimha, G 2014, 'A Review On Spatial Data Mining Methods And Applications', International Journal of Computer Engineering and Applications, vol. 7, no. 1, pp. 208-218.  
+Rosen-Zvi, M, Griffiths, T, Smyth, P & Steyvers, M 2010, 'Learning author-topic models from text corpora', ACM Transactions on Information Systems, vol.28, no.4, pp 1-33.  
+Steyvers, M, Smyth, P, Rosen???Zvi, M & Griffiths, T 2004, 'Probabilistic Author???Topic Models for Information Discovery', 10th ACM SigKDD conference knowledge discovery and data mining.
+Vijayarani, S & Sathya, P 2013, 'Mining Frequent Item Sets over Data Streams using Éclat Algorithm', International Conference on Research Trends in Computer Technologies.  
+Xu, Y & Kennedy, E 2015, 'An Introduction to Spatial Analysis in Social Science Research', The Quantitative Methods for Psychology, vol. 11, no. 1, pp. 22-31.  
+Yu, L & Bian, F 2007, 'An Incremental Data Mining Method for Spatial Association Rule in GIS Based Fireproof System', proceedings of International Conference on Wireless Communications, Networking and Mobile Computing.  
